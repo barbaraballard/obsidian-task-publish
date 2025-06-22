@@ -1,0 +1,11 @@
+{
+    "id": "task-publish",
+    "name": "TaskPublish",
+    "version": "1.0.0",
+    "minAppVersion": "0.15.0",
+    "description": "Publish your task queries to a hosted web page with real-time sync",
+    "author": "TaskPublish Team",
+    "authorUrl": "https://github.com/taskpublish/obsidian-task-publish",
+    "fundingUrl": "https://github.com/sponsors/taskpublish",
+    "isDesktopOnly": false
+}
