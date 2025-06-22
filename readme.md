@@ -56,33 +56,33 @@ A powerful Obsidian plugin that publishes your task queries to a hosted web page
 
 Create a page in your vault that contains task queries. For example:
 
-```markdown
-# My Task Dashboard
 
-## Today's Focus
-``` tasks
-not done 
-(starts before tomorrow) 
-(due on or before tomorrow) or (scheduled before tomorrow)
-short mode
-hide task count
-```
+    # My Task Dashboard
+    
+    ## Today's Focus
+    ``` tasks
+    not done 
+    (starts before tomorrow) 
+    (due on or before tomorrow) or (scheduled before tomorrow)
+    short mode
+    hide task count
+    ```
+    
+    ## Important Tasks
+    ``` tasks
+    not done
+    (starts before tomorrow) 
+    (priority is above medium)
+    short mode
+    hide task count
+    ```
+    
+    ## Done Today
+    ``` tasks
+    done today
+    short mode
+    ```
 
-## Important Tasks
-``` tasks
-not done
-(starts before tomorrow) 
-(priority is above medium)
-short mode
-hide task count
-```
-
-## Done Today
-``` tasks
-done today
-short mode
-```
-```
 
 ## Usage
 
