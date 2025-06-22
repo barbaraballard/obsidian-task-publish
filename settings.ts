@@ -3,8 +3,9 @@ export interface TaskPublishSettings {
     periodicNotesFolder: string;
     syncInterval: number; // in minutes
     pagePassword: string;
-    netlifySiteName: string;
-    netlifyToken: string;
+    gitRepoUrl: string;
+    gitBranch: string;
+    localRepoPath: string;
     lastSync: number;
 }
 
@@ -13,7 +14,8 @@ export const DEFAULT_SETTINGS: TaskPublishSettings = {
     periodicNotesFolder: 'Daily Notes',
     syncInterval: 60,
     pagePassword: '',
-    netlifySiteName: '',
-    netlifyToken: '',
+    gitRepoUrl: '',
+    gitBranch: 'main',
+    localRepoPath: '',
     lastSync: 0
 };

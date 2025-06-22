@@ -1,4 +1,10 @@
 import { TaskPublishSettings } from './settings';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
+import * as fs from 'fs';
+
+const execAsync = promisify(exec);
 
 export class WebPublisher {
     settings: TaskPublishSettings;
@@ -10,12 +16,48 @@ export class WebPublisher {
     async publish(content: string): Promise<void> {
         const htmlContent = this.generateHtmlPage(content);
         
-        if (this.settings.netlifySiteName && this.settings.netlifyToken) {
-            await this.publishToNetlify(htmlContent);
-        } else {
-            // For development/testing - save locally or show preview
-            console.log('HTML Content:', htmlContent);
-            throw new Error('Netlify configuration required for publishing');
+        if (!this.settings.gitRepoUrl) {
+            throw new Error('Git repository URL is required for publishing');
+        }
+
+        await this.publishToGitHub(htmlContent);
+    }
+
+    async publishToGitHub(htmlContent: string): Promise<void> {
+        const repoPath = this.settings.localRepoPath || path.join(process.cwd(), '.taskpublish-repo');
+        
+        try {
+            // Check if local repo exists, if not clone it
+            if (!fs.existsSync(repoPath)) {
+                console.log('Cloning repository...');
+                await execAsync(`git clone ${this.settings.gitRepoUrl} "${repoPath}"`);
+            }
+
+            // Change to repo directory and pull latest changes
+            process.chdir(repoPath);
+            await execAsync('git pull origin ' + this.settings.gitBranch);
+
+            // Write the HTML file
+            const htmlPath = path.join(repoPath, 'index.html');
+            fs.writeFileSync(htmlPath, htmlContent, 'utf8');
+
+            // Check if there are changes to commit
+            const { stdout: statusOutput } = await execAsync('git status --porcelain');
+            
+            if (statusOutput.trim()) {
+                // Add, commit, and push changes
+                await execAsync('git add index.html');
+                await execAsync(`git commit -m "Update tasks - ${new Date().toISOString()}"`);
+                await execAsync(`git push origin ${this.settings.gitBranch}`);
+                
+                console.log('Tasks published to GitHub successfully!');
+            } else {
+                console.log('No changes to publish');
+            }
+            
+        } catch (error) {
+            console.error('Error publishing to GitHub:', error);
+            throw new Error(`GitHub publishing failed: ${error}`);
         }
     }
 
@@ -39,6 +81,7 @@ export class WebPublisher {
         <div class="container">
             <h1>My Tasks</h1>
             <div class="last-updated">Last updated: ${new Date().toLocaleString()}</div>
+            <div class="repo-info">📁 Published from: ${this.settings.gitRepoUrl}</div>
             
             <div class="task-input-section">
                 <h3>Add New Task</h3>
@@ -100,9 +143,17 @@ export class WebPublisher {
             padding-bottom: 10px;
         }
         
-        .last-updated {
+        .last-updated, .repo-info {
             color: #666;
             font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        
+        .repo-info {
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 4px solid #28a745;
             margin-bottom: 30px;
         }
         
@@ -282,7 +333,11 @@ export class WebPublisher {
 
     getJavaScript(): string {
         return `
-        let tasks = [];
+        let pendingChanges = {
+            toggles: {},
+            postpones: {},
+            newTasks: {}
+        };
         
         function checkPassword() {
             const input = document.getElementById('password-input');
@@ -299,16 +354,22 @@ export class WebPublisher {
         }
         
         function toggleTask(taskId) {
-            // Send update to Obsidian via API call
-            fetch('/api/toggle-task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taskId: taskId })
-            }).catch(err => {
-                console.log('Task toggle will sync on next Obsidian startup');
-                // Store locally for next sync
-                localStorage.setItem('pendingToggle_' + taskId, 'true');
-            });
+            // Store in pending changes object
+            pendingChanges.toggles[taskId] = true;
+            savePendingChanges();
+            
+            // Update UI immediately
+            const checkbox = document.querySelector('input[data-task-id="' + taskId + '"]');
+            if (checkbox) {
+                const taskItem = checkbox.closest('.task-item');
+                if (checkbox.checked) {
+                    taskItem.classList.add('completed');
+                } else {
+                    taskItem.classList.remove('completed');
+                }
+            }
+            
+            console.log('Task toggle queued for next Obsidian sync');
         }
         
         function postponeTask(taskId, days) {
@@ -316,14 +377,10 @@ export class WebPublisher {
             newDate.setDate(newDate.getDate() + days);
             const dateString = newDate.toISOString().split('T')[0];
             
-            fetch('/api/postpone-task', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taskId: taskId, newDate: dateString })
-            }).catch(err => {
-                console.log('Task postpone will sync on next Obsidian startup');
-                localStorage.setItem('pendingPostpone_' + taskId, dateString);
-            });
+            pendingChanges.postpones[taskId] = dateString;
+            savePendingChanges();
+            
+            alert('Task postponed to ' + dateString + '. Will sync on next Obsidian startup.');
         }
         
         function addNewTask() {
@@ -331,24 +388,34 @@ export class WebPublisher {
             const taskText = input.value.trim();
             
             if (taskText) {
-                fetch('/api/add-task', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: taskText })
-                }).then(() => {
-                    input.value = '';
-                    alert('Task added! Will appear after next sync.');
-                }).catch(err => {
-                    console.log('Task will be added on next Obsidian startup');
-                    localStorage.setItem('pendingTask_' + Date.now(), taskText);
-                    input.value = '';
-                    alert('Task queued for next sync!');
-                });
+                const timestamp = Date.now();
+                pendingChanges.newTasks[timestamp] = taskText;
+                savePendingChanges();
+                
+                input.value = '';
+                alert('Task queued for next sync!');
+            }
+        }
+        
+        function savePendingChanges() {
+            // In a real implementation, this would save to a JSON file
+            // that gets committed to the repository
+            // For now, we'll use localStorage as a fallback
+            localStorage.setItem('taskpublish_pending_changes', JSON.stringify(pendingChanges));
+            console.log('Pending changes saved:', pendingChanges);
+        }
+        
+        function loadPendingChanges() {
+            const saved = localStorage.getItem('taskpublish_pending_changes');
+            if (saved) {
+                pendingChanges = JSON.parse(saved);
             }
         }
         
         // Handle Enter key in password input
         document.addEventListener('DOMContentLoaded', function() {
+            loadPendingChanges();
+            
             const passwordInput = document.getElementById('password-input');
             if (passwordInput) {
                 passwordInput.addEventListener('keypress', function(e) {
@@ -367,29 +434,5 @@ export class WebPublisher {
                 });
             }
         });`;
-    }
-
-    async publishToNetlify(htmlContent: string): Promise<void> {
-        const siteId = this.settings.netlifySiteName;
-        const accessToken = this.settings.netlifyToken;
-        
-        const formData = new FormData();
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        formData.append('index.html', blob);
-        
-        const response = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`
-            },
-            body: formData
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Netlify deployment failed: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        console.log('Deployed to:', result.deploy_ssl_url);
     }
 }

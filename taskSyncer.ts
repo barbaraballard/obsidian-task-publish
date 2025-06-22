@@ -13,7 +13,7 @@ export class TaskSyncer {
     async sync(): Promise<void> {
         try {
             // Process any pending changes from the web interface
-            await this.processPendingWebChanges();
+            await this.readPendingChangesFromRepo();
             
             // Update the settings with last sync time
             this.settings.lastSync = Date.now();
@@ -189,28 +189,68 @@ export class TaskSyncer {
     }
 
     // Mock methods for handling pending changes
-    // In a real implementation, these would interface with localStorage
-    // or a server endpoint to track pending changes from the web interface
+    // In a real implementation, these would read from a JSON file
+    // that the web interface could write to in the git repository
 
     getPendingToggles(): Record<string, boolean> {
-        // Mock implementation - would read from localStorage or API
+        // Read from a JSON file in the git repository
+        // For now, mock implementation
         return {};
     }
 
     getPendingPostpones(): Record<string, string> {
-        // Mock implementation - would read from localStorage or API
+        // Read from a JSON file in the git repository
+        // For now, mock implementation
         return {};
     }
 
     getPendingTasks(): Record<string, string> {
-        // Mock implementation - would read from localStorage or API
+        // Read from a JSON file in the git repository
+        // For now, mock implementation
         return {};
     }
 
     clearProcessedPendingChanges(): void {
-        // Mock implementation - would clear localStorage or notify API
+        // Clear the JSON file in the git repository
         console.log('Cleared processed pending changes');
     }
+
+    async readPendingChangesFromRepo(): Promise<void> {
+        // This would read pending changes from a JSON file in the git repository
+        // The web interface would write changes to this file, and Obsidian would read them
+        const repoPath = this.settings.localRepoPath || '.taskpublish-repo';
+        const pendingChangesPath = `${repoPath}/pending-changes.json`;
+        
+        try {
+            const fs = require('fs');
+            if (fs.existsSync(pendingChangesPath)) {
+                const pendingChanges = JSON.parse(fs.readFileSync(pendingChangesPath, 'utf8'));
+                
+                // Process toggles
+                for (const [taskId, _] of Object.entries(pendingChanges.toggles || {})) {
+                    await this.toggleTaskInVault(taskId);
+                }
+                
+                // Process postponements
+                for (const [taskId, newDate] of Object.entries(pendingChanges.postpones || {})) {
+                    await this.postponeTaskInVault(taskId, newDate as string);
+                }
+                
+                // Process new tasks
+                for (const [_, taskText] of Object.entries(pendingChanges.newTasks || {})) {
+                    await this.addTaskToPeriodicNote(taskText as string);
+                }
+                
+                // Clear the file after processing
+                fs.unlinkSync(pendingChangesPath);
+                console.log('Processed and cleared pending changes from repository');
+            }
+        } catch (error) {
+            console.error('Error reading pending changes from repository:', error);
+        }
+    }
+
+
 
     // Utility method to find tasks that need to be synced
     async findModifiedTasks(): Promise<string[]> {

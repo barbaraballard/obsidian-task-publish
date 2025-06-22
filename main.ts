@@ -166,24 +166,35 @@ class TaskPublishSettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Netlify Site Name')
-            .setDesc('Your Netlify site name (e.g., my-tasks)')
+            .setName('Git Repository URL')
+            .setDesc('URL of your private GitHub repository (e.g., https://github.com/username/my-tasks.git)')
             .addText(text => text
-                .setPlaceholder('my-tasks')
-                .setValue(this.plugin.settings.netlifySiteName)
+                .setPlaceholder('https://github.com/username/my-tasks.git')
+                .setValue(this.plugin.settings.gitRepoUrl)
                 .onChange(async (value) => {
-                    this.plugin.settings.netlifySiteName = value;
+                    this.plugin.settings.gitRepoUrl = value;
                     await this.plugin.saveSettings();
                 }));
 
         new Setting(containerEl)
-            .setName('Netlify Access Token')
-            .setDesc('Your Netlify personal access token')
+            .setName('Git Branch')
+            .setDesc('Branch to publish to (usually main or gh-pages)')
             .addText(text => text
-                .setPlaceholder('Enter access token')
-                .setValue(this.plugin.settings.netlifyToken)
+                .setPlaceholder('main')
+                .setValue(this.plugin.settings.gitBranch)
                 .onChange(async (value) => {
-                    this.plugin.settings.netlifyToken = value;
+                    this.plugin.settings.gitBranch = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Local Repository Path')
+            .setDesc('Local path where the git repository will be cloned (optional)')
+            .addText(text => text
+                .setPlaceholder('/path/to/local/repo')
+                .setValue(this.plugin.settings.localRepoPath)
+                .onChange(async (value) => {
+                    this.plugin.settings.localRepoPath = value;
                     await this.plugin.saveSettings();
                 }));
     }

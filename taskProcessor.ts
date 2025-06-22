@@ -172,7 +172,7 @@ export class TaskProcessor {
             
             html += `
                 <div class="task-item ${priorityClass} ${completedClass}" data-task-id="${task.id}">
-                    <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask('${task.id}')">
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} data-task-id="${task.id}" onchange="toggleTask('${task.id}')">
                     <span class="task-text">${task.text}</span>
                     ${!isShortMode ? this.renderTaskMetadata(task) : ''}
                     <div class="task-actions">
