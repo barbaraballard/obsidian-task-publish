@@ -274,10 +274,5 @@ export class TaskSyncer {
         return /^[\s]*-\s*\[[ x]\]/m.test(content);
     }
 
-    // Method to handle real-time sync if web interface is connected
-    async setupRealTimeSync(): Promise<void> {
-        // This would set up WebSocket connection or polling
-        // for real-time synchronization with the web interface
-        console.log('Real-time sync setup - would implement WebSocket connection');
-    }
+
 }
